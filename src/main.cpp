@@ -6,6 +6,9 @@
 #include <vector>
 
 #include <stb_image/stb_image.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
   glViewport(0, 0, width, height);
@@ -77,31 +80,33 @@ int main() {
   }
 
 
-  const char* vertexShaderString = "#version 330 core\n"
-                                   "layout (location = 0) in vec3 pos;\n"
-                                   "layout (location = 1) in vec4 color;\n"
-                                   "layout (location = 2) in vec2 textureCoordinates;\n"
+  const char* vertexShaderString = R"Shader(#version 330 core
+                                   layout (location = 0) in vec3 pos;
+                                   layout (location = 1) in vec4 color;
+                                   layout (location = 2) in vec2 textureCoordinates;
 
-                                   "out vec4 outColor;\n"
-                                   "out vec2 outTextureCoordinates;\n"
+                                   out vec4 outColor;
+                                   out vec2 outTextureCoordinates;
 
-                                   "void main() {\n"
-                                     "outColor = color;\n"
-                                     "outTextureCoordinates = textureCoordinates;\n"
-                                     "gl_Position = vec4(pos, 1.0f);\n"
-                                   "}";
+                                   uniform mat4 uProjection;
+
+                                   void main() {
+                                     outColor = color;
+                                     outTextureCoordinates = textureCoordinates;
+                                     gl_Position = uProjection * vec4(pos, 1.0f);
+                                   })Shader";
 
 
-  const char* fragmentShaderString = "#version 330 core\n"
-                                     "in vec4 outColor;\n"
-                                     "in vec2 outTextureCoordinates;\n"
+  const char* fragmentShaderString = R"Shader(#version 330 core
+                                     in vec4 outColor;
+                                     in vec2 outTextureCoordinates;
 
-                                     "out vec4 fragColor;\n"
-                                     "uniform sampler2D uTexture;\n"
+                                     out vec4 fragColor;
+                                     uniform sampler2D uTexture;
 
-                                     "void main() {\n"
-                                       "fragColor = texture(uTexture, outTextureCoordinates) * outColor; \n"
-                                     "}";
+                                     void main() {
+                                       fragColor = texture(uTexture, outTextureCoordinates) * outColor;
+                                     })Shader";
 
   unsigned int program = glCreateProgram();
 
@@ -147,16 +152,20 @@ int main() {
 
   std::vector<float> vertices = {
     // Positions,                  Colors,                         Texture Coordinates
-    -0.5f, 0.5f, 0.0f,             1.0f, 0.5f, 1.0f, 1.0f,            0.0f, 1.0f,               // Top Left
-    -0.5f, -0.5f, 0.0f,            1.0f, 0.2f, 0.0f, 1.0f,            0.0f, 0.0f,               // Bottom Left
-    0.5f, 0.5f, 0.0f,              0.2f, 0.0f, 0.8f, 1.0f,            1.0f, 1.0f,               // Top Right
-    0.5f, -0.5f, 0.0f,             0.4f, 0.5f, 1.0f, 1.0f,            1.0f, 0.0f,               // Bottom Right
+    200.0f, 100.0f, 0.0f,             1.0f, 0.5f, 1.0f, 1.0f,            0.0f, 1.0f,               // Top Left
+    200.0f, 300.0f, 0.0f,            1.0f, 0.2f, 0.0f, 1.0f,            0.0f, 0.0f,               // Bottom Left
+    400.0f, 100.0f, 0.0f,              0.2f, 0.0f, 0.8f, 1.0f,            1.0f, 1.0f,               // Top Right
+    400.0f, 300.0f, 0.0f,             0.4f, 0.5f, 1.0f, 1.0f,            1.0f, 0.0f,               // Bottom Right
   };
 
   std::vector<unsigned int> indices = {
     0, 1, 2,
     2, 1, 3,
   };
+
+
+  glm::mat4 projection = glm::ortho(0.0f, window.width, window.height, 0.0f);
+
 
   glGenVertexArrays(1, &vao);
   glBindVertexArray(vao);
@@ -182,9 +191,10 @@ int main() {
   glUseProgram(program);
   glBindTexture(GL_TEXTURE_2D, texture);
   glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
+  glUniformMatrix4fv(glGetUniformLocation(program, "uProjection"), 1, GL_FALSE, glm::value_ptr(projection));
 
   while(!window.shouldClose()) {
-    glClearColor(0.0f, 0.1f, 0.7f, 1.0f);
+    glClearColor(181/255.0f, 81/255.0f, 81/255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
