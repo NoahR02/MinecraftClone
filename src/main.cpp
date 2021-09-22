@@ -88,12 +88,12 @@ int main() {
                                    out vec4 outColor;
                                    out vec2 outTextureCoordinates;
 
-                                   uniform mat4 uProjection;
+                                   uniform mat4 uMVP;
 
                                    void main() {
                                      outColor = color;
                                      outTextureCoordinates = textureCoordinates;
-                                     gl_Position = uProjection * vec4(pos, 1.0f);
+                                     gl_Position = uMVP * vec4(pos, 1.0f);
                                    })Shader";
 
 
@@ -152,10 +152,10 @@ int main() {
 
   std::vector<float> vertices = {
     // Positions,                  Colors,                         Texture Coordinates
-    200.0f, 100.0f, 0.0f,             1.0f, 0.5f, 1.0f, 1.0f,            0.0f, 1.0f,               // Top Left
-    200.0f, 300.0f, 0.0f,            1.0f, 0.2f, 0.0f, 1.0f,            0.0f, 0.0f,               // Bottom Left
-    400.0f, 100.0f, 0.0f,              0.2f, 0.0f, 0.8f, 1.0f,            1.0f, 1.0f,               // Top Right
-    400.0f, 300.0f, 0.0f,             0.4f, 0.5f, 1.0f, 1.0f,            1.0f, 0.0f,               // Bottom Right
+    -0.5f, 0.5f, 0.0f,             1.0f, 0.5f, 1.0f, 1.0f,            0.0f, 1.0f,               // Top Left
+    -0.5f, -0.5f, 0.0f,            1.0f, 0.2f, 0.0f, 1.0f,            0.0f, 0.0f,               // Bottom Left
+    0.5f, 0.5f, 0.0f,              0.2f, 0.0f, 0.8f, 1.0f,            1.0f, 1.0f,               // Top Right
+    0.5f, -0.5f, 0.0f,             0.4f, 0.5f, 1.0f, 1.0f,            1.0f, 0.0f,               // Bottom Right
   };
 
   std::vector<unsigned int> indices = {
@@ -164,7 +164,16 @@ int main() {
   };
 
 
-  glm::mat4 projection = glm::ortho(0.0f, window.width, window.height, 0.0f);
+
+  glm::mat4 model = glm::mat4(1.0f);
+  glm::mat4 view = glm::mat4(1.0f);
+  glm::mat4 projection = glm::mat4(1.0f);
+
+  projection = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
+  model = glm::rotate(model, glm::radians(-55.0f), glm::vec3{1.0f, 0.0f, 0.0f});
+  view = glm::translate(view, glm::vec3{0.0f, 0.0f, -3.0f});
+
+  glm::mat4 mvp = projection * view * model;
 
 
   glGenVertexArrays(1, &vao);
@@ -191,7 +200,9 @@ int main() {
   glUseProgram(program);
   glBindTexture(GL_TEXTURE_2D, texture);
   glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
-  glUniformMatrix4fv(glGetUniformLocation(program, "uProjection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+
+  glUniformMatrix4fv(glGetUniformLocation(program, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
 
   while(!window.shouldClose()) {
     glClearColor(181/255.0f, 81/255.0f, 81/255.0f, 1.0f);
