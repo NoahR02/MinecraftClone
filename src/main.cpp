@@ -46,7 +46,7 @@ struct Window {
     }
 
     glfwSetFramebufferSizeCallback(glfwWindow, framebufferSizeCallback);
-
+    glfwSwapInterval(0);
     return 0;
   }
 
@@ -278,179 +278,176 @@ int main() {
                                      uniform sampler2D uTexture;
 
                                      void main() {
-                                       fragColor = texture(uTexture, outTextureCoordinates) * outColor;
+                                       fragColor = texture(uTexture, outTextureCoordinates);
                                      })Shader";
 
   ShaderProgram program(vertexShaderString, fragmentShaderString);
 
-  VertexArray vao;
-  VertexBuffer vbo;
-  IndexBuffer ibo;
-
   VertexBuffer cubeVBO;
+  IndexBuffer cubeIBO;
   VertexArray cubeVAO;
 
-  Texture texture("assets/textures/test.png");
+  Texture texture("assets/textures/spritesheet.png");
+
+  struct TextureRectangle {
+    float x;
+    float y;
+
+    float width;
+    float height;
+  };
+
+  auto imageToNDC = [] (int textureWidth, int textureHeight, int column, int row, float width, float height) -> TextureRectangle {
+
+    return TextureRectangle {
+      (column * width) / textureWidth,
+      (row * height) / textureHeight,
+      width / textureWidth,
+      height / textureHeight
+    };
+
+  };
+
+  TextureRectangle sidesOfGrassInfo = imageToNDC(texture.width, texture.height, 0, 0, 16, 16);
+  TextureRectangle topOfGrassInfo = imageToNDC(texture.width, texture.height, 1, 0, 16, 16);
+
+  std::vector<unsigned int> cubeIndices = {
+
+    // Front Face
+    0, 1, 2,
+    3, 0, 2,
+    // Side Face
+    4, 5, 6,
+    6, 5, 7,
+
+    // Top Face
+    8, 9, 10,
+    11, 9, 8,
+
+    // Side Face
+     12, 13, 14,
+     14, 13, 15,
+
+    // Back Face
+    16, 17, 18,
+    19, 16, 18,
+
+    // Bottom Face
+    20, 21, 22,
+    23, 20, 22
+
+  };
 
   std::vector<float> cube = {
 
-    // Front Face.
-    0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f,
-    1.0f, 0.0f, 0.0f,
 
-    1.0f, 1.0f, 0.0f,
-    0.0f, 1.0f, 0.0f,
-    1.0f, 0.0f, 0.0f,
+    // Positions,                  Colors,                         Texture Coordinates
+
+    // Front Face.
+    0.0f, 1.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y, // 0
+    0.0f, 0.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 1
+    1.0f, 0.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 2
+
+    1.0f, 1.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,         sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y, // 3
+    // 0
+    // 2
 
     // Side Face(Visible)
-    1.0f, 1.0f, 0.0f,
-    1.0f, 0.0f, 0.0f,
-    1.0f, 1.0f, 1.0f,
+    1.0f, 1.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y, // 4
+    1.0f, 0.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 5
+    1.0f, 1.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,         sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y, // 6
 
-    1.0f, 1.0f, 1.0f,
-    1.0f, 0.0f, 0.0f,
-    1.0f, 0.0f, 1.0f,
+    // 6
+    // 5
+    1.0f, 0.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 7
 
     // Top Face
-    1.0f, 1.0f, 1.0f,
-    0.0f, 1.0f, 0.0f,
-    1.0f, 1.0f, 0.0f,
+    1.0f, 1.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          topOfGrassInfo.x + topOfGrassInfo.width, topOfGrassInfo.y, // 8
+    0.0f, 1.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          topOfGrassInfo.x, topOfGrassInfo.y - topOfGrassInfo.height,  // 9
+    1.0f, 1.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          topOfGrassInfo.x + topOfGrassInfo.width, topOfGrassInfo.y - topOfGrassInfo.height,  // 10
 
-    0.0f, 1.0f, 1.0f,
-    0.0f, 1.0f, 0.0f,
-    1.0f, 1.0f, 1.0f,
+    0.0f, 1.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          topOfGrassInfo.x, topOfGrassInfo.y, // 11
+    // 9
+    // 8
 
     // Side Face (Not Visible)
-    0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 1.0f,
+    0.0f, 1.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y, // 12
+    0.0f, 0.0f, 0.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 13
+    0.0f, 1.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,         sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y, // 14
 
-    0.0f, 1.0f, 1.0f,
-    0.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f,
+    // 14
+    // 13
+    0.0f, 0.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 15
 
     // Back Face
-    0.0f, 1.0f, 1.0f,
-    0.0f, 0.0f, 1.0f,
-    1.0f, 0.0f, 1.0f,
+    0.0f, 1.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y, // 16
+    0.0f, 0.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 17
+    1.0f, 0.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 18
 
-    1.0f, 1.0f, 1.0f,
-    0.0f, 1.0f, 1.0f,
-    1.0f, 0.0f, 1.0f,
+    1.0f, 1.0f, -1.0f,             0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y, // 19
+    // 16
+    // 18
 
     // Bottom Face
-    0.0f, 0.0f, 1.0f,
-    0.0f, 0.0f, 0.0f,
-    1.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, -1.0f,              0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x, sidesOfGrassInfo.y, // 20
+    0.0f, 0.0f, 0.0f,              0.0f, 1.0f, 0.0f, 0.0f,           sidesOfGrassInfo.x, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 21
+    1.0f, 0.0f, 0.0f,              0.0f, 1.0f, 0.0f, 0.0f,           sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y - sidesOfGrassInfo.height, // 22
 
-    1.0f, 0.0f, 1.0f,
-    0.0f, 0.0f, 1.0f,
-    1.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, -1.0f,              0.0f, 1.0f, 0.0f, 0.0f,          sidesOfGrassInfo.x + sidesOfGrassInfo.width, sidesOfGrassInfo.y, // 23
+    // 20
+    // 22
+
   };
 
-  std::vector<float> vertices = {
-    // Positions,                  Colors,                         Texture Coordinates
-    -0.5f, 0.5f, 0.0f,             1.0f, 0.5f, 1.0f, 1.0f,            0.0f, 1.0f,               // Top Left
-    -0.5f, -0.5f, 0.0f,            1.0f, 0.2f, 0.0f, 1.0f,            0.0f, 0.0f,               // Bottom Left
-    0.5f, 0.5f, 0.0f,              0.2f, 0.0f, 0.8f, 1.0f,            1.0f, 1.0f,               // Top Right
-    0.5f, -0.5f, 0.0f,             0.4f, 0.5f, 1.0f, 1.0f,            1.0f, 0.0f,               // Bottom Right
-  };
-
-  std::vector<unsigned int> indices = {
-    0, 1, 2,
-    2, 1, 3,
-  };
-
-
-
-  glm::mat4 model = glm::mat4(1.0f);
-  glm::mat4 view = glm::mat4(1.0f);
-  glm::mat4 projection = glm::mat4(1.0f);
-
-  projection = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
-  //model = glm::rotate(model, glm::radians(-55.0f), glm::vec3{0.0f, 0.0f, 0.0f});
-  view = glm::translate(view, glm::vec3{0.0f, 0.0f, -3.0f});
-
-  glm::mat4 mvp = projection * view * model;
-
-
-  vao.bind();
-  vbo.bind();
-
-  ibo.bind();
-
-  vbo.uploadBufferData(vertices, GL_STATIC_DRAW);
-  ibo.uploadBufferData(indices, GL_STATIC_DRAW);
-
-
-  vao.enableAttribute(0);
-  vao.describeAttributeLayout(0, 3, GL_FLOAT, false, sizeof(float) * 9, 0);
-
-  vao.enableAttribute(1);
-  vao.describeAttributeLayout(1, 4, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 3));
-
-  vao.enableAttribute(2);
-  vao.describeAttributeLayout(2, 2, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 7));
-
-
-  const char* vertexShaderStringCUBE = R"Shader(#version 330 core
-                                   layout (location = 0) in vec3 pos;
-                                   uniform mat4 uMVP;
-
-                                   void main() {
-                                     gl_Position = uMVP * vec4(pos, 1.0f);
-                                   })Shader";
-
-
-  const char* fragmentShaderStringCUBE = R"Shader(#version 330 core
-
-                                     out vec4 fragColor;
-
-                                     void main() {
-                                       fragColor = vec4(1.0f, 0.5f, 0.0f, 1.0f);
-                                     })Shader";
-
-  ShaderProgram programCUBE(vertexShaderStringCUBE, fragmentShaderStringCUBE);
 
   cubeVAO.bind();
   cubeVBO.bind();
+  cubeIBO.bind();
   cubeVBO.uploadBufferData(cube, GL_STATIC_DRAW);
+  cubeIBO.uploadBufferData(cubeIndices, GL_STATIC_DRAW);
+
   cubeVAO.enableAttribute(0);
-  cubeVAO.describeAttributeLayout(0, 3, GL_FLOAT, false, 0, 0);
+  cubeVAO.describeAttributeLayout(0, 3, GL_FLOAT, false, sizeof(float) * 9, 0);
+
+  cubeVAO.enableAttribute(1);
+  cubeVAO.describeAttributeLayout(1, 4, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 3));
+
+  cubeVAO.enableAttribute(2);
+  cubeVAO.describeAttributeLayout(2, 2, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 7));
 
   glm::mat4 modelCUBE = glm::mat4(1.0f);
   glm::mat4 viewCUBE = glm::mat4(1.0f);
   glm::mat4 projectionCUBE = glm::mat4(1.0f);
 
+
   projectionCUBE = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
   modelCUBE = glm::scale(modelCUBE, glm::vec3{0.5f, 0.5f, 0.5f});
-  modelCUBE = glm::rotate(modelCUBE, glm::radians(75.0f), glm::vec3{1.0f, 0.0f, 0.0f});
-  modelCUBE = glm::translate(modelCUBE, glm::vec3{0.9f, 0.0f, 0.0f});
+  modelCUBE = glm::rotate(modelCUBE, glm::radians(20.0f), glm::vec3{0.4f, 0.0f, 0.0f});
+  modelCUBE = glm::translate(modelCUBE, glm::vec3{-2.0f, -1.0f, 0.0f});
   viewCUBE = glm::translate(viewCUBE, glm::vec3{0.0f, 0.0f, -3.0f});
 
   glm::mat4 mvpCUBE = projectionCUBE * viewCUBE * modelCUBE;
 
-  programCUBE.bind();
-  programCUBE.uniformMatrix4fv("uMVP", 1, GL_FALSE, glm::value_ptr(mvpCUBE));
+  glEnable(GL_DEPTH_TEST);
 
   while(!window.shouldClose()) {
     glClearColor(181/255.0f, 81/255.0f, 81/255.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    model = glm::translate(model, glm::vec3{0.0f, 0.0f, -0.1f});
-    mvp = projection * view * model;
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     program.bind();
-    vao.bind();
     texture.bind();
-    program.uniform1i("uTexture", 0);
-    program.uniformMatrix4fv("uMVP", 1, false, glm::value_ptr(mvp));
-    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
 
-    programCUBE.bind();
+    modelCUBE = glm::mat4(1.0f);
+    modelCUBE = glm::scale(modelCUBE, glm::vec3{0.5f, 0.5f, 0.5f});
+    modelCUBE = glm::rotate(modelCUBE, (float)glfwGetTime() * glm::radians(60.0f), glm::vec3{0.4f, 1.0f, 0.0f});
+    modelCUBE = glm::translate(modelCUBE, glm::vec3{0.9f, -0.5f, 0.0f});
+    mvpCUBE = projectionCUBE * viewCUBE * modelCUBE;
+
+
     cubeVAO.bind();
-    glDrawArrays(GL_TRIANGLES, 0, cube.size());
+    program.uniform1i("texture", 0);
+    program.uniformMatrix4fv("uMVP", 1, false, glm::value_ptr(mvpCUBE));
+    glDrawElements(GL_TRIANGLES, cubeIndices.size(), GL_UNSIGNED_INT, nullptr);
 
 
     window.pollEvents();
