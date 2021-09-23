@@ -72,6 +72,181 @@ private:
 
 };
 
+
+struct VertexArray {
+
+  unsigned int rendererID;
+
+  VertexArray() {
+    glGenVertexArrays(1, &rendererID);
+  }
+
+  void enableAttribute(unsigned int index) const {
+    glEnableVertexAttribArray(index);
+  }
+
+  void describeAttributeLayout(unsigned int attributeIndex, int size, GLenum type, bool normalized, int stride, int offset) const {
+    glVertexAttribPointer(attributeIndex, size, type, normalized, stride, (void*)offset);
+  }
+
+  void bind() const {
+    glBindVertexArray(rendererID);
+  }
+
+  void unbind() const {
+    glBindVertexArray(0);
+  }
+
+  ~VertexArray() {
+    glDeleteVertexArrays(1, &rendererID);
+  }
+
+};
+
+struct VertexBuffer {
+
+  unsigned int rendererID;
+
+  VertexBuffer() {
+    glGenBuffers(1, &rendererID);
+  }
+
+  void bind() const {
+    glBindBuffer(GL_ARRAY_BUFFER, rendererID);
+  }
+
+  void unbind() const {
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+  }
+
+  void uploadBufferData(const std::vector<float>& vertices, GLenum drawType) const {
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size(), &vertices.front(), drawType);
+  }
+
+  ~VertexBuffer() {
+    glDeleteBuffers(1, &rendererID);
+  }
+
+};
+
+struct IndexBuffer {
+
+  unsigned int rendererID;
+
+  IndexBuffer() {
+    glGenBuffers(1, &rendererID);
+  }
+
+  void bind() const {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rendererID);
+  }
+
+  void unbind() const {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  }
+
+  void uploadBufferData(const std::vector<unsigned int>& indices, GLenum drawType) const {
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(float) * indices.size(), &indices.front(), drawType);
+  }
+
+  ~IndexBuffer() {
+    glDeleteBuffers(1, &rendererID);
+  }
+
+};
+
+struct ShaderProgram {
+
+  unsigned int rendererID;
+
+  ShaderProgram(const std::string& vertexShaderString, const std::string& fragmentShaderString) {
+    rendererID = glCreateProgram();
+
+    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+
+    const char* vertexShaderStringTemp = vertexShaderString.c_str();
+    const char* fragmentShaderStringTemp = fragmentShaderString.c_str();
+
+    glShaderSource(vertexShader, 1, &vertexShaderStringTemp, nullptr);
+    glShaderSource(fragmentShader, 1, &fragmentShaderStringTemp, nullptr);
+
+    glCompileShader(vertexShader);
+    glCompileShader(fragmentShader);
+
+    glAttachShader(rendererID, vertexShader);
+    glAttachShader(rendererID, fragmentShader);
+    glLinkProgram(rendererID);
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+  }
+
+  void uniform1i(const std::string& uniformName, int uniformData) const {
+    glUniform1i(glGetUniformLocation(rendererID, uniformName.c_str()), uniformData);
+  }
+
+  void uniformMatrix4fv(const std::string& uniformName, int count, bool transpose, const float* uniformData) const {
+    glUniformMatrix4fv(glGetUniformLocation(rendererID, uniformName.c_str()), count, transpose, uniformData);
+  }
+
+  //glUniform1i(glGetUniformLocation(program.rendererID, "uTexture"), 0);
+ // glUniformMatrix4fv(glGetUniformLocation(program.rendererID, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+
+  void bind() const {
+    glUseProgram(rendererID);
+  }
+
+  void unbind() const {
+    glUseProgram(0);
+  }
+
+  ~ShaderProgram() {
+    glDeleteProgram(rendererID);
+  }
+
+};
+
+struct Texture {
+
+  unsigned int rendererID;
+
+  int width;
+  int height;
+  int channels;
+
+  Texture(const std::string& texturePath) {
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char* data = stbi_load(texturePath.c_str(), &width, &height, &channels, 4);
+
+    glGenTextures(1, &rendererID);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, rendererID);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    stbi_image_free(data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+
+  void bind() const {
+    glBindTexture(GL_TEXTURE_2D, rendererID);
+  }
+
+  void unbind() const {
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+
+  ~Texture() {
+    glDeleteTextures(1, &rendererID);
+  }
+
+};
+
 int main() {
   Window window(1600, 900, "MinecraftClone");
 
@@ -95,8 +270,6 @@ int main() {
                                      outTextureCoordinates = textureCoordinates;
                                      gl_Position = uMVP * vec4(pos, 1.0f);
                                    })Shader";
-
-
   const char* fragmentShaderString = R"Shader(#version 330 core
                                      in vec4 outColor;
                                      in vec2 outTextureCoordinates;
@@ -108,47 +281,73 @@ int main() {
                                        fragColor = texture(uTexture, outTextureCoordinates) * outColor;
                                      })Shader";
 
-  unsigned int program = glCreateProgram();
+  ShaderProgram program(vertexShaderString, fragmentShaderString);
 
-  unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-  unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  VertexArray vao;
+  VertexBuffer vbo;
+  IndexBuffer ibo;
 
-  glShaderSource(vertexShader, 1, &vertexShaderString, nullptr);
-  glShaderSource(fragmentShader, 1, &fragmentShaderString, nullptr);
+  VertexBuffer cubeVBO;
+  VertexArray cubeVAO;
 
-  glCompileShader(vertexShader);
-  glCompileShader(fragmentShader);
+  Texture texture("assets/textures/test.png");
 
-  glAttachShader(program, vertexShader);
-  glAttachShader(program, fragmentShader);
-  glLinkProgram(program);
+  std::vector<float> cube = {
 
-  glUseProgram(program);
+    // Front Face.
+    0.0f, 1.0f, 0.0f,
+    0.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
 
-  unsigned int vao;
-  unsigned int vbo;
-  unsigned int ebo;
+    1.0f, 1.0f, 0.0f,
+    0.0f, 1.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
 
+    // Side Face(Visible)
+    1.0f, 1.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+    1.0f, 1.0f, 1.0f,
 
-  int width;
-  int height;
-  int channels;
+    1.0f, 1.0f, 1.0f,
+    1.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 1.0f,
 
-  stbi_set_flip_vertically_on_load(true);
-  unsigned char* data = stbi_load("assets/textures/test.png", &width, &height, &channels, 4);
+    // Top Face
+    1.0f, 1.0f, 1.0f,
+    0.0f, 1.0f, 0.0f,
+    1.0f, 1.0f, 0.0f,
 
-  unsigned int texture;
-  glGenTextures(1, &texture);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, texture);
+    0.0f, 1.0f, 1.0f,
+    0.0f, 1.0f, 0.0f,
+    1.0f, 1.0f, 1.0f,
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // Side Face (Not Visible)
+    0.0f, 1.0f, 0.0f,
+    0.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 1.0f,
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-  stbi_image_free(data);
+    0.0f, 1.0f, 1.0f,
+    0.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f,
+
+    // Back Face
+    0.0f, 1.0f, 1.0f,
+    0.0f, 0.0f, 1.0f,
+    1.0f, 0.0f, 1.0f,
+
+    1.0f, 1.0f, 1.0f,
+    0.0f, 1.0f, 1.0f,
+    1.0f, 0.0f, 1.0f,
+
+    // Bottom Face
+    0.0f, 0.0f, 1.0f,
+    0.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+
+    1.0f, 0.0f, 1.0f,
+    0.0f, 0.0f, 1.0f,
+    1.0f, 0.0f, 0.0f,
+  };
 
   std::vector<float> vertices = {
     // Positions,                  Colors,                         Texture Coordinates
@@ -170,45 +369,89 @@ int main() {
   glm::mat4 projection = glm::mat4(1.0f);
 
   projection = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
-  model = glm::rotate(model, glm::radians(-55.0f), glm::vec3{1.0f, 0.0f, 0.0f});
+  //model = glm::rotate(model, glm::radians(-55.0f), glm::vec3{0.0f, 0.0f, 0.0f});
   view = glm::translate(view, glm::vec3{0.0f, 0.0f, -3.0f});
 
   glm::mat4 mvp = projection * view * model;
 
 
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
+  vao.bind();
+  vbo.bind();
 
-  glGenBuffers(1, &vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  ibo.bind();
 
-  glGenBuffers(1, &ebo);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-
-  glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size(), &vertices.front(), GL_STATIC_DRAW);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indices.size(), &indices.front(), GL_STATIC_DRAW);
-
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 9, (void*)nullptr);
-
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(float) * 9, (void*)(sizeof(float) * 3));
-
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 9, (void*)(sizeof(float) * 7));
-
-  glUseProgram(program);
-  glBindTexture(GL_TEXTURE_2D, texture);
-  glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
+  vbo.uploadBufferData(vertices, GL_STATIC_DRAW);
+  ibo.uploadBufferData(indices, GL_STATIC_DRAW);
 
 
-  glUniformMatrix4fv(glGetUniformLocation(program, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+  vao.enableAttribute(0);
+  vao.describeAttributeLayout(0, 3, GL_FLOAT, false, sizeof(float) * 9, 0);
+
+  vao.enableAttribute(1);
+  vao.describeAttributeLayout(1, 4, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 3));
+
+  vao.enableAttribute(2);
+  vao.describeAttributeLayout(2, 2, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 7));
+
+
+  const char* vertexShaderStringCUBE = R"Shader(#version 330 core
+                                   layout (location = 0) in vec3 pos;
+                                   uniform mat4 uMVP;
+
+                                   void main() {
+                                     gl_Position = uMVP * vec4(pos, 1.0f);
+                                   })Shader";
+
+
+  const char* fragmentShaderStringCUBE = R"Shader(#version 330 core
+
+                                     out vec4 fragColor;
+
+                                     void main() {
+                                       fragColor = vec4(1.0f, 0.5f, 0.0f, 1.0f);
+                                     })Shader";
+
+  ShaderProgram programCUBE(vertexShaderStringCUBE, fragmentShaderStringCUBE);
+
+  cubeVAO.bind();
+  cubeVBO.bind();
+  cubeVBO.uploadBufferData(cube, GL_STATIC_DRAW);
+  cubeVAO.enableAttribute(0);
+  cubeVAO.describeAttributeLayout(0, 3, GL_FLOAT, false, 0, 0);
+
+  glm::mat4 modelCUBE = glm::mat4(1.0f);
+  glm::mat4 viewCUBE = glm::mat4(1.0f);
+  glm::mat4 projectionCUBE = glm::mat4(1.0f);
+
+  projectionCUBE = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
+  modelCUBE = glm::scale(modelCUBE, glm::vec3{0.5f, 0.5f, 0.5f});
+  modelCUBE = glm::rotate(modelCUBE, glm::radians(75.0f), glm::vec3{1.0f, 0.0f, 0.0f});
+  modelCUBE = glm::translate(modelCUBE, glm::vec3{0.9f, 0.0f, 0.0f});
+  viewCUBE = glm::translate(viewCUBE, glm::vec3{0.0f, 0.0f, -3.0f});
+
+  glm::mat4 mvpCUBE = projectionCUBE * viewCUBE * modelCUBE;
+
+  programCUBE.bind();
+  programCUBE.uniformMatrix4fv("uMVP", 1, GL_FALSE, glm::value_ptr(mvpCUBE));
 
   while(!window.shouldClose()) {
     glClearColor(181/255.0f, 81/255.0f, 81/255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    model = glm::translate(model, glm::vec3{0.0f, 0.0f, -0.1f});
+    mvp = projection * view * model;
+
+    program.bind();
+    vao.bind();
+    texture.bind();
+    program.uniform1i("uTexture", 0);
+    program.uniformMatrix4fv("uMVP", 1, false, glm::value_ptr(mvp));
     glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
+
+    programCUBE.bind();
+    cubeVAO.bind();
+    glDrawArrays(GL_TRIANGLES, 0, cube.size());
+
 
     window.pollEvents();
     window.swapBuffers();
