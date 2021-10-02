@@ -1,0 +1,8 @@
+#ifndef MINECRAFTCLONE_GLOBALEVENTSYSTEM_H
+#define MINECRAFTCLONE_GLOBALEVENTSYSTEM_H
+
+#include "EventSystem/EventSystem.h"
+
+extern EventSystem eventSystem;
+
+#endif //MINECRAFTCLONE_GLOBALEVENTSYSTEM_H

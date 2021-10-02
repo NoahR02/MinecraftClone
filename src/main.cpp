@@ -1,259 +1,45 @@
-#include <iostream>
+#include "precompiledheader.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include <vector>
-
-#include <stb_image/stb_image.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
-  glViewport(0, 0, width, height);
-}
-
-struct Window {
-
-  Window(const Window &) = delete;
-
-  GLFWwindow* glfwWindow;
-  float width;
-  float height;
-  std::string title;
-
-  Window(float width, float height, const std::string& title) : width(width), height(height), title(title) {}
-
-  int init() {
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindow = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
-
-    if(glfwWindow == nullptr) {
-      std::cout << "Failed to create a glfw window." << std::endl;
-      cleanup();
-      return -1;
-    }
-
-    glfwMakeContextCurrent(glfwWindow);
-    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-      std::cout << "Failed to initialize glad." << std::endl;
-      cleanup();
-      return -1;
-    }
-
-    glfwSetFramebufferSizeCallback(glfwWindow, framebufferSizeCallback);
-    glfwSwapInterval(0);
-    return 0;
-  }
-
-  bool shouldClose() const {
-    return glfwWindowShouldClose(glfwWindow);
-  };
-
-  void swapBuffers() const {
-    glfwSwapBuffers(glfwWindow);
-  }
-
-  void pollEvents() {
-    glfwPollEvents();
-  }
-
-  void cleanup() const {
-    glfwDestroyWindow(glfwWindow);
-    glfwTerminate();
-  }
-
-private:
-  Window() = delete;
-
-};
-
-
-struct VertexArray {
-
-  unsigned int rendererID;
-
-  VertexArray() {
-    glGenVertexArrays(1, &rendererID);
-  }
-
-  void enableAttribute(unsigned int index) const {
-    glEnableVertexAttribArray(index);
-  }
-
-  void describeAttributeLayout(unsigned int attributeIndex, int size, GLenum type, bool normalized, int stride, int offset) const {
-    glVertexAttribPointer(attributeIndex, size, type, normalized, stride, (void*)offset);
-  }
-
-  void bind() const {
-    glBindVertexArray(rendererID);
-  }
-
-  void unbind() const {
-    glBindVertexArray(0);
-  }
-
-  ~VertexArray() {
-    glDeleteVertexArrays(1, &rendererID);
-  }
-
-};
-
-struct VertexBuffer {
-
-  unsigned int rendererID;
-
-  VertexBuffer() {
-    glGenBuffers(1, &rendererID);
-  }
-
-  void bind() const {
-    glBindBuffer(GL_ARRAY_BUFFER, rendererID);
-  }
-
-  void unbind() const {
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-  }
-
-  void uploadBufferData(const std::vector<float>& vertices, GLenum drawType) const {
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size(), &vertices.front(), drawType);
-  }
-
-  ~VertexBuffer() {
-    glDeleteBuffers(1, &rendererID);
-  }
-
-};
-
-struct IndexBuffer {
-
-  unsigned int rendererID;
-
-  IndexBuffer() {
-    glGenBuffers(1, &rendererID);
-  }
-
-  void bind() const {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rendererID);
-  }
-
-  void unbind() const {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  }
-
-  void uploadBufferData(const std::vector<unsigned int>& indices, GLenum drawType) const {
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(float) * indices.size(), &indices.front(), drawType);
-  }
-
-  ~IndexBuffer() {
-    glDeleteBuffers(1, &rendererID);
-  }
-
-};
-
-struct ShaderProgram {
-
-  unsigned int rendererID;
-
-  ShaderProgram(const std::string& vertexShaderString, const std::string& fragmentShaderString) {
-    rendererID = glCreateProgram();
-
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-
-    const char* vertexShaderStringTemp = vertexShaderString.c_str();
-    const char* fragmentShaderStringTemp = fragmentShaderString.c_str();
-
-    glShaderSource(vertexShader, 1, &vertexShaderStringTemp, nullptr);
-    glShaderSource(fragmentShader, 1, &fragmentShaderStringTemp, nullptr);
-
-    glCompileShader(vertexShader);
-    glCompileShader(fragmentShader);
-
-    glAttachShader(rendererID, vertexShader);
-    glAttachShader(rendererID, fragmentShader);
-    glLinkProgram(rendererID);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-  }
-
-  void uniform1i(const std::string& uniformName, int uniformData) const {
-    glUniform1i(glGetUniformLocation(rendererID, uniformName.c_str()), uniformData);
-  }
-
-  void uniformMatrix4fv(const std::string& uniformName, int count, bool transpose, const float* uniformData) const {
-    glUniformMatrix4fv(glGetUniformLocation(rendererID, uniformName.c_str()), count, transpose, uniformData);
-  }
-
-  //glUniform1i(glGetUniformLocation(program.rendererID, "uTexture"), 0);
- // glUniformMatrix4fv(glGetUniformLocation(program.rendererID, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
-
-  void bind() const {
-    glUseProgram(rendererID);
-  }
-
-  void unbind() const {
-    glUseProgram(0);
-  }
-
-  ~ShaderProgram() {
-    glDeleteProgram(rendererID);
-  }
-
-};
-
-struct Texture {
-
-  unsigned int rendererID;
-
-  int width;
-  int height;
-  int channels;
-
-  Texture(const std::string& texturePath) {
-    stbi_set_flip_vertically_on_load(true);
-    unsigned char* data = stbi_load(texturePath.c_str(), &width, &height, &channels, 4);
-
-    glGenTextures(1, &rendererID);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, rendererID);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    stbi_image_free(data);
-    glBindTexture(GL_TEXTURE_2D, 0);
-  }
-
-  void bind() const {
-    glBindTexture(GL_TEXTURE_2D, rendererID);
-  }
-
-  void unbind() const {
-    glBindTexture(GL_TEXTURE_2D, 0);
-  }
-
-  ~Texture() {
-    glDeleteTextures(1, &rendererID);
-  }
-
-};
+#include "Renderer/VertexArray.h"
+#include "Renderer/VertexBuffer.h"
+#include "Renderer/IndexBuffer.h"
+#include "Renderer/Texture.h"
+#include "Renderer/ShaderProgram.h"
+#include "Window.h"
+#include "Input.h"
+
+#include "EventSystem/GlobalEventSystem.h"
+
+EventSystem eventSystem;
+static Input input;
 
 int main() {
+
   Window window(1600, 900, "MinecraftClone");
 
   if(window.init() == -1) {
     return -1;
   }
 
+  glfwSetWindowUserPointer(window.glfwWindow, &window);
+  glfwSetInputMode(window.glfwWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+  eventSystem.messageSubscribe("windowResize" , [](EventSystem::MessageData& messageData) {
+    std::cout << "Window Width: " << messageData.f32[0] << std::endl;
+    std::cout << "Window Height: " << messageData.f32[1] << std::endl;
+  });
+
+  eventSystem.messageSubscribe("keyCallback" , [  ](EventSystem::MessageData& messageData) {
+    input.keys[messageData.i32[0]] = messageData.i32[1];
+  });
+
+  eventSystem.messageSubscribe("cursorPosCallback" , [](EventSystem::MessageData& messageData) {
+    input.cursorXPosition = messageData.d64[0];
+    input.cursorYPosition = messageData.d64[1];
+  });
 
   const char* vertexShaderString = R"Shader(#version 330 core
                                    layout (location = 0) in vec3 pos;
@@ -270,6 +56,7 @@ int main() {
                                      outTextureCoordinates = textureCoordinates;
                                      gl_Position = uMVP * vec4(pos, 1.0f);
                                    })Shader";
+
   const char* fragmentShaderString = R"Shader(#version 330 core
                                      in vec4 outColor;
                                      in vec2 outTextureCoordinates;
@@ -325,8 +112,8 @@ int main() {
     11, 9, 8,
 
     // Side Face
-     12, 13, 14,
-     14, 13, 15,
+    12, 13, 14,
+    14, 13, 15,
 
     // Back Face
     16, 17, 18,
@@ -415,33 +202,94 @@ int main() {
   cubeVAO.enableAttribute(2);
   cubeVAO.describeAttributeLayout(2, 2, GL_FLOAT, false, sizeof(float) * 9, (sizeof(float) * 7));
 
-  glm::mat4 modelCUBE = glm::mat4(1.0f);
-  glm::mat4 viewCUBE = glm::mat4(1.0f);
-  glm::mat4 projectionCUBE = glm::mat4(1.0f);
+  glm::mat4 model = glm::mat4(1.0f);
+  glm::mat4 view = glm::mat4(1.0f);
+  glm::mat4 projection = glm::mat4(1.0f);
 
+  glm::vec3 up = {0.0f, 1.0f, 0.0f};
+  glm::vec3 cameraTarget = {0.0f, 0.0f, 0.0f};
 
-  projectionCUBE = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
-  modelCUBE = glm::scale(modelCUBE, glm::vec3{0.5f, 0.5f, 0.5f});
-  modelCUBE = glm::rotate(modelCUBE, glm::radians(20.0f), glm::vec3{0.4f, 0.0f, 0.0f});
-  modelCUBE = glm::translate(modelCUBE, glm::vec3{-2.0f, -1.0f, 0.0f});
-  viewCUBE = glm::translate(viewCUBE, glm::vec3{0.0f, 0.0f, -3.0f});
-
-  glm::mat4 mvpCUBE = projectionCUBE * viewCUBE * modelCUBE;
+  model = glm::scale(model, glm::vec3{0.5f, 0.5f, 0.5f});
+  model = glm::translate(model, glm::vec3{-2.0f, -1.0f, 0.0f});
 
   glEnable(GL_DEPTH_TEST);
 
+  float lastFrame = 0.0f;
+  float deltaTime;
+
+  float yaw = 90.0f;
+  float pitch = 0.0f;
+  float sensitivity = 0.02f;
+  glfwSetCursorPos(window.glfwWindow, 1600/2, 900/2);
+
+  glm::vec3 cameraDirection = {
+    glm::cos(glm::radians(yaw)) * glm::cos(glm::radians(pitch)),
+    glm::sin(glm::radians(pitch)),
+    glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch))
+  };
+
+  glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
+  glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+  glm::vec3 cameraPosition = {0.0f, 0.0f, -4.0f};
+  glm::vec3 cameraRight = glm::normalize(glm::cross(cameraFront, cameraUp));
+
+  projection = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
+  glm::mat4 mvpCUBE = projection * view * model;
+
   while(!window.shouldClose()) {
-    glClearColor(181/255.0f, 81/255.0f, 81/255.0f, 1.0f);
+    float currentTime = glfwGetTime();
+    deltaTime = currentTime - lastFrame;
+    lastFrame = currentTime;
+
+    eventSystem.messageQueueExecuteAll();
+
+    const float cameraSpeed = 2.5f * deltaTime;
+
+    float offsetX = input.cursorXPosition - input.lastCursorXPosition;
+    float offsetY = input.lastCursorYPosition - input.cursorYPosition;
+
+    offsetX *= sensitivity * deltaTime;
+    offsetY *= sensitivity * deltaTime;
+
+    yaw += offsetX;
+    pitch += offsetY;
+
+    if(pitch > 89.0f) {
+      pitch = 89.0f;
+    }
+
+    if(pitch < -89.0f) {
+      pitch = -89.0f;
+    }
+
+    auto front = glm::vec3 {
+      glm::cos(glm::radians(yaw)) * glm::cos(glm::radians(pitch)),
+      glm::sin(glm::radians(pitch)),
+      glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch))
+    };
+
+    cameraFront = glm::normalize(front);
+
+
+
+    if(input.keys[GLFW_KEY_W]) {
+      cameraPosition += cameraFront * cameraSpeed;
+    } else if(input.keys[GLFW_KEY_A]) {
+      cameraPosition += -cameraRight * cameraSpeed;
+    } else if(input.keys[GLFW_KEY_S]) {
+      cameraPosition -= cameraFront * cameraSpeed;
+    } else if(input.keys[GLFW_KEY_D]) {
+      cameraPosition += cameraRight * cameraSpeed;
+    }
+
+    glClearColor(123/255.0f, 165/255.0f, 232/255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     program.bind();
     texture.bind();
 
-    modelCUBE = glm::mat4(1.0f);
-    modelCUBE = glm::scale(modelCUBE, glm::vec3{0.5f, 0.5f, 0.5f});
-    modelCUBE = glm::rotate(modelCUBE, (float)glfwGetTime() * glm::radians(60.0f), glm::vec3{0.4f, 1.0f, 0.0f});
-    modelCUBE = glm::translate(modelCUBE, glm::vec3{0.9f, -0.5f, 0.0f});
-    mvpCUBE = projectionCUBE * viewCUBE * modelCUBE;
+    view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
+    mvpCUBE = projection * view * model;
 
 
     cubeVAO.bind();
