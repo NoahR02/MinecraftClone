@@ -12,6 +12,9 @@
 #include "Input.h"
 
 #include "EventSystem/GlobalEventSystem.h"
+#include "defer.h"
+
+#include "Camera.h"
 
 EventSystem eventSystem;
 static Input input;
@@ -23,6 +26,8 @@ int main() {
   if(window.init() == -1) {
     return -1;
   }
+
+  defer(window.cleanup());
 
   glfwSetWindowUserPointer(window.glfwWindow, &window);
   glfwSetInputMode(window.glfwWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -206,9 +211,6 @@ int main() {
   glm::mat4 view = glm::mat4(1.0f);
   glm::mat4 projection = glm::mat4(1.0f);
 
-  glm::vec3 up = {0.0f, 1.0f, 0.0f};
-  glm::vec3 cameraTarget = {0.0f, 0.0f, 0.0f};
-
   model = glm::scale(model, glm::vec3{0.5f, 0.5f, 0.5f});
   model = glm::translate(model, glm::vec3{-2.0f, -1.0f, 0.0f});
 
@@ -217,24 +219,9 @@ int main() {
   float lastFrame = 0.0f;
   float deltaTime;
 
-  float yaw = 90.0f;
-  float pitch = 0.0f;
-  float sensitivity = 0.02f;
   glfwSetCursorPos(window.glfwWindow, 1600/2, 900/2);
 
-  glm::vec3 cameraDirection = {
-    glm::cos(glm::radians(yaw)) * glm::cos(glm::radians(pitch)),
-    glm::sin(glm::radians(pitch)),
-    glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch))
-  };
-
-  glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
-  glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-  glm::vec3 cameraPosition = {0.0f, 0.0f, -4.0f};
-  glm::vec3 cameraRight = glm::normalize(glm::cross(cameraFront, cameraUp));
-
-  projection = glm::perspective(glm::radians(45.0f), window.width / window.height, 0.1f, 100.0f);
-  glm::mat4 mvpCUBE = projection * view * model;
+  Camera camera(window.width, window.height, {0.0f, 0.0f, 3.0f});
 
   while(!window.shouldClose()) {
     float currentTime = glfwGetTime();
@@ -243,36 +230,8 @@ int main() {
 
     eventSystem.messageQueueExecuteAll();
 
-    const float cameraSpeed = 2.5f * deltaTime;
-
-    float offsetX = input.cursorXPosition - input.lastCursorXPosition;
-    float offsetY = input.lastCursorYPosition - input.cursorYPosition;
-
-    offsetX *= sensitivity * deltaTime;
-    offsetY *= sensitivity * deltaTime;
-
-    yaw += offsetX;
-    pitch += offsetY;
-
-    if(pitch > 89.0f) {
-      pitch = 89.0f;
-    }
-
-    if(pitch < -89.0f) {
-      pitch = -89.0f;
-    }
-
-    auto front = glm::vec3 {
-      glm::cos(glm::radians(yaw)) * glm::cos(glm::radians(pitch)),
-      glm::sin(glm::radians(pitch)),
-      glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch))
-    };
-
-    cameraFront = glm::normalize(front);
-
-
-
-    if(input.keys[GLFW_KEY_W]) {
+    camera.handleCameraInput(window, input, deltaTime);
+   /* if(input.keys[GLFW_KEY_W]) {
       cameraPosition += cameraFront * cameraSpeed;
     } else if(input.keys[GLFW_KEY_A]) {
       cameraPosition += -cameraRight * cameraSpeed;
@@ -280,7 +239,7 @@ int main() {
       cameraPosition -= cameraFront * cameraSpeed;
     } else if(input.keys[GLFW_KEY_D]) {
       cameraPosition += cameraRight * cameraSpeed;
-    }
+    }*/
 
     glClearColor(123/255.0f, 165/255.0f, 232/255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -288,13 +247,10 @@ int main() {
     program.bind();
     texture.bind();
 
-    view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
-    mvpCUBE = projection * view * model;
-
 
     cubeVAO.bind();
     program.uniform1i("texture", 0);
-    program.uniformMatrix4fv("uMVP", 1, false, glm::value_ptr(mvpCUBE));
+    camera.uploadMatrixToShader(45.0f, 0.1f, 100.0f, program);
     glDrawElements(GL_TRIANGLES, cubeIndices.size(), GL_UNSIGNED_INT, nullptr);
 
 
@@ -302,5 +258,4 @@ int main() {
     window.swapBuffers();
   }
 
-  window.cleanup();
 }
