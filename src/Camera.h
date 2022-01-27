@@ -27,7 +27,7 @@ struct Camera {
 
   bool firstClick = true;
 
-  float speed = 4.00f;
+  float speed = 16.00f;
   float sensitivity = 100.0f;
 
   Camera(int width, int height, const glm::vec3& position);
