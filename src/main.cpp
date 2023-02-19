@@ -2,220 +2,124 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include "window/window.h"
 
-#include <glm/gtc/noise.hpp>
-
-#include "Renderer/VertexArray.h"
-#include "Renderer/VertexBuffer.h"
-#include "Renderer/IndexBuffer.h"
-#include "Renderer/Texture.h"
-#include "Renderer/ShaderProgram.h"
-#include "Renderer/TextureRectangle.h"
-#include "Window.h"
-#include "Input.h"
-
-#include "EventSystem/GlobalEventSystem.h"
 #include "defer.h"
-
-#include "Camera.h"
-#include "cube.h"
 #include "Utils/ReadFile.h"
 
-EventSystem eventSystem;
-static Input input;
+#include "renderer/renderer.h"
+#include "renderer/mesh.h"
+#include "renderer/ShaderProgram.h"
+#include "editor_camera.h"
+#include "renderer/primitives.h"
+#include <glm/gtc/random.hpp>
+#include <glm/gtc/noise.hpp>
 
-enum struct BlockType {
-  Grass
-};
-
-std::unordered_map<BlockType, glm::vec2> textureCoordinates;
-
-struct Block {
-  BlockType blockType;
-};
-
-struct Chunk {
-
-  glm::vec3 position;
-
-  VertexArray vao;
-  VertexBuffer vbo;
-  IndexBuffer ibo;
-  std::vector<float> vertices;
-  std::vector<unsigned int> indices;
-
-  explicit Chunk(const glm::vec3& position, const TextureRectangle& textureRectangle1, const TextureRectangle& textureRectangle2) : position(position) {
-
-    vao.bind();
-    vbo.bind();
-    ibo.bind();
-
-    float iIncrement = 0.0f;
-
-    constexpr int SCALE = 16;
-
-    for(int x = 0 + (int)position.x; x < 16 * SCALE + position.x; ++x) {
-      for(int z = 0 + (int)position.z; z < 16 * SCALE + position.z; ++z) {
-
-        float frequency = 200;
-        auto result = pow((glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 2, 8) / 12;
-        frequency = 190;
-        result += pow((glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 2, 8) / 12;
-        frequency = 210;
-        result += pow((glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 2, 8) / 12;
-        frequency = 80;
-        result += (glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 5;
-        frequency = 50;
-        result += (glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 2;
-        frequency = 40;
-        result += (glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 15;
-        frequency = 100;
-        result += (glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 10;
-        frequency = 200;
-        result += (glm::simplex((glm::vec2{(float)x/ (frequency + (float)(rand() % 1)), (float)z/(float)(frequency + (rand() % 1))})) + 1) / 2 * 5;
-
-
-        for(int y = -10; y < 0; ++y) {
-          const std::vector tmpV = createCubeVertices({(float)x, (float)y, (float)z},textureRectangle1, textureRectangle2);
-          vertices.insert(vertices.end(), tmpV.begin(), tmpV.end());
-
-          const std::vector tmpI = createCubeIndices(iIncrement);
-          indices.insert(indices.end(), tmpI.begin(), tmpI.end());
-
-          iIncrement += CUBE_INDICES_INCREMENT_AMOUNT;
-        }
-
-        for(int y = 0; y < result; ++y) {
-          const std::vector tmpV = createCubeVertices({(float)x, (float)y, (float)z},textureRectangle1, textureRectangle2);
-          vertices.insert(vertices.end(), tmpV.begin(), tmpV.end());
-
-          const std::vector tmpI = createCubeIndices(iIncrement);
-          indices.insert(indices.end(), tmpI.begin(), tmpI.end());
-
-          iIncrement += CUBE_INDICES_INCREMENT_AMOUNT;
-        }
-      }
-    }
-
-    vbo.uploadBufferData(vertices, GL_DYNAMIC_DRAW);
-    ibo.uploadBufferData(indices, GL_DYNAMIC_DRAW);
-
-    vao.enableAttribute(0);
-    vao.describeAttributeLayout(0, 3, GL_FLOAT, false, sizeof(float) * 5, 0);
-
-    vao.enableAttribute(1);
-    vao.describeAttributeLayout(1, 2, GL_FLOAT, false, sizeof(float) * 5, (sizeof(float) * 3));
-  }
-
-  void render(ShaderProgram& shaderProgram, Texture& texture) {
-    shaderProgram.bind();
-    texture.bind();
-
-    vao.bind();
-    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
-  }
-
-
+enum struct Block_Type {
+  Air,
+  Dirt,
+  Water
 };
 
 int main() {
 
-  Window window(1600, 900, "MinecraftClone");
+  Window game_window{};
+  game_window.init(1600, 900, "Minecraft");
 
-  if(window.init() == -1) {
-    return -1;
+  Renderer renderer;
+
+  Mesh* voxels_geometry = new Mesh(Vertex_Layout{Vertex_Layout_Flag::XYZ_RGBA});
+  constexpr int MAP_WIDTH = 200;
+  constexpr int MAP_HEIGHT = 25;
+  constexpr int MAP_Z = 200;
+  static Block_Type blocks[MAP_WIDTH][MAP_HEIGHT][MAP_Z];
+
+  // Generate Ground
+  constexpr int GROUND_LEVEL = 5;
+  for (int x = 0; x < MAP_WIDTH; ++x) {
+    for (int y = 0; y < GROUND_LEVEL; ++y) {
+      for (int z = 0; z < MAP_Z; ++z) {
+        blocks[x][y][z] = Block_Type::Dirt;
+      }
+    }
   }
 
-  defer(window.cleanup());
+  // Generate Cliffs
 
-  glfwSetWindowUserPointer(window.glfwWindow, &window);
-  glfwSetInputMode(window.glfwWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+  for (int x = 0; x < MAP_WIDTH; ++x) {
+      for (int z = 0; z < MAP_Z; ++z) {
+        float noise = 10 * (glm::perlin(glm::vec2{x * 0.05, z * 0.05}) + 1) / 2;
 
-  eventSystem.messageSubscribe("windowResize" , [](EventSystem::MessageData& messageData) {
-    std::cout << "Window Width: " << messageData.f32[0] << std::endl;
-    std::cout << "Window Height: " << messageData.f32[1] << std::endl;
-  });
+        for (int y = 0; y < noise; ++y) {
+          blocks[x][y + GROUND_LEVEL][z] = Block_Type::Dirt;
+        }
 
-  eventSystem.messageSubscribe("keyCallback" , [  ](EventSystem::MessageData& messageData) {
-    input.keys[messageData.i32[0]] = messageData.i32[1];
-  });
+      }
+  }
 
-  eventSystem.messageSubscribe("cursorPosCallback" , [](EventSystem::MessageData& messageData) {
-    input.cursorXPosition = messageData.d64[0];
-    input.cursorYPosition = messageData.d64[1];
-  });
+    
 
-  const std::string vertexShaderString = readFile("assets/shaders/default.vert");
-  const std::string fragmentShaderString = readFile("assets/shaders/default.frag");
 
-  ShaderProgram program(vertexShaderString, fragmentShaderString);
+  // Generate Vertices from map data
+  for (int x = 0; x < MAP_WIDTH; ++x) {
+    for (int y = 0; y < MAP_HEIGHT; ++y) {
+      for (int z = 0; z < MAP_Z; ++z) {
 
-  VertexBuffer cubeVBO;
-  IndexBuffer cubeIBO;
-  VertexArray cubeVAO;
+        Block_Type current_block = blocks[x][y][z];
+        if(current_block != Block_Type::Air) {
+          float g = static_cast<float>(x) / static_cast<float>(MAP_WIDTH);
+          float b = static_cast<float>(z) / static_cast<float>(MAP_Z);
+          float n = (glm::simplex(glm::vec3{x * 0.5, y *.5, z * 0.5}) + 1) / 2;
+          float n2 = (glm::simplex(glm::vec3{x * 0.05, y * .5, z * 0.05}) + 1) / 2;
+          float n3 = (glm::simplex(glm::vec3{x * 0.01, y * .1, z * 0.15}) + 1) / 2;
+          add_cube(*voxels_geometry, glm::vec3{x, y, z}, glm::vec4{n3, g * n, b * n2, 1});
+        }
 
-  Texture texture("assets/textures/spritesheet.png");
+      }
+    }
+  }
+  voxels_geometry->build();
 
-  TextureRectangle sidesOfGrassInfo = imageToNDC(texture.width, texture.height, 0, 0, 16, 16);
-  TextureRectangle topOfGrassInfo = imageToNDC(texture.width, texture.height, 1, 0, 16, 16);
+  Model voxels{*voxels_geometry};
+  voxels.set_material(renderer.default_material);
 
-  std::vector<float> cube = createCubeVertices(sidesOfGrassInfo, topOfGrassInfo);
-  std::vector<unsigned int> cubeIndices = createCubeIndices();
 
-  cubeVAO.bind();
-  cubeVBO.bind();
-  cubeIBO.bind();
-  cubeVBO.uploadBufferData(cube, GL_STATIC_DRAW);
-  cubeIBO.uploadBufferData(cubeIndices, GL_STATIC_DRAW);
+  Editor_Camera camera({0, 0, 3}, Projection_Data(1600.0f / 900));
 
-  cubeVAO.enableAttribute(0);
-  cubeVAO.describeAttributeLayout(0, 3, GL_FLOAT, false, sizeof(float) * 5, 0);
+  Shader_Program shader(readFile("assets/shaders/basic.vs"), readFile("assets/shaders/basic.fs"));
+  glfwSetInputMode(game_window.get_window_handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+  float delta{};
+  float last_frame{};
+  while(!game_window.should_close()) {
+    float now = glfwGetTime();
+    delta = now - last_frame;
+    last_frame = now;
 
-  cubeVAO.enableAttribute(1);
-  cubeVAO.describeAttributeLayout(1, 2, GL_FLOAT, false, sizeof(float) * 5, (sizeof(float) * 3));
-
-  glEnable(GL_DEPTH_TEST);
-
-  float lastFrame = 0.0f;
-  float deltaTime;
-
-  glfwSetCursorPos(window.glfwWindow, 1600 / 2, 900 / 2);
-
-  Camera camera(window.width, window.height, {0.0f, 10.0f, 3.0f});
-
-  constexpr float fov = 45.0f;
-  constexpr float nearPlane = 0.1f;
-  constexpr float farPlane = 500.0f;
-
-  Chunk chunk({-20, 0, -20}, sidesOfGrassInfo, topOfGrassInfo);
-
-  while(!window.shouldClose()) {
-    float currentTime = glfwGetTime();
-    deltaTime = currentTime - lastFrame;
-    lastFrame = currentTime;
-
-    eventSystem.messageQueueExecuteAll();
-
-    camera.handleCameraInput(window, input, deltaTime);
+    camera.process_input(delta);
+    camera.process_mouse_input();
+    if(Input::is_key_pressed(Key::KEY_ESCAPE)) break;
 
     glClearColor(123 / 255.0f, 165 / 255.0f, 232 / 255.0f, 1.0f);
+    glEnable(GL_DEPTH_TEST);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    program.bind();
-    texture.bind();
 
+    shader.bind();
+    shader.set_mat4("u_projection", camera.projection);
+    shader.set_mat4("u_view", camera.view);
+    auto identity = glm::mat4(1.0f);
+    auto model = glm::mat4(1.0f);
+    glUniformMatrix4fv(glGetUniformLocation(shader.renderer_id, "u_model"), 1, GL_FALSE, &model[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(shader.renderer_id, "u_animation_channel_1"), 1, GL_FALSE, &identity[0][0]);
+    glUniform4fv(glGetUniformLocation(shader.renderer_id, "u_base_color"), 1, &renderer.default_material.color[0]);
+    voxels.draw();
 
-    cubeVAO.bind();
-
-
-    program.uniform1i("texture", 0);
-    camera.uploadMatrixToShader(fov, nearPlane, farPlane, program);
-    glDrawElements(GL_TRIANGLES, cubeIndices.size(), GL_UNSIGNED_INT, nullptr);
-
-    chunk.render(program, texture);
-
-    window.pollEvents();
-    window.swapBuffers();
+    game_window.poll_for_events();
+    game_window.swap_buffers();
   }
 
 }
